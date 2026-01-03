@@ -263,9 +263,9 @@
         const powerModeDuration = 400; // frames
         
         const ghosts = [
-            { pos: 100, color: '#FF6B6B', name: 'Red', edible: false },
-            { pos: 118, color: '#4ECDC4', name: 'Cyan', edible: false },
-            { pos: 135, color: '#FFE66D', name: 'Yellow', edible: false }
+            { pos: 100, color: '#FF1744', name: 'Red', edible: false },
+            { pos: 118, color: '#00BCD4', name: 'Cyan', edible: false },
+            { pos: 135, color: '#FF9800', name: 'Orange', edible: false }
         ];
 
         // Pre-cache cells for better performance
@@ -276,6 +276,8 @@
         let nextDirection = null;
         let lastMoveTime = 0;
         const moveInterval = 150; // milliseconds between moves
+        let ghostMoveTime = 0;
+        const ghostMoveInterval = 300; // ghosts move slower (200ms slower than pacman)
         let animationFrameId = null;
 
         // Web Audio API for sound effects
@@ -534,14 +536,14 @@
                         // Hit by ghost
                         lives--;
                         livesDisplay.textContent = lives;
+                        playGameOverSound(); // Play sound for every life lost
 
                         if (lives <= 0) {
                             gameRunning = false;
                             statusText.textContent = '💀 Game Over! No lives left.';
                             statusText.style.color = '#FF6B6B';
-                            playGameOverSound();
                         } else {
-                            pacmanPos = 11;
+                            pacmanPos = 17;
                             statusText.textContent = `Hit by ${ghost.name} ghost! Lives: ${lives}`;
                             statusText.style.color = '#FFE66D';
                         }
@@ -571,8 +573,12 @@
 
             if (timestamp - lastMoveTime > moveInterval) {
                 movePacman();
-                moveGhosts();
                 lastMoveTime = timestamp;
+            }
+
+            if (timestamp - ghostMoveTime > ghostMoveInterval) {
+                moveGhosts();
+                ghostMoveTime = timestamp;
             }
 
             // Toggle Pac-Man mouth animation
@@ -597,6 +603,7 @@
             pacmanMouthOpen = true;
             mouthToggleCounter = 0;
             lastMoveTime = 0;
+            ghostMoveTime = 0;
             powerMode = false;
             powerModeTimer = 0;
             
