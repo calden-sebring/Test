@@ -221,7 +221,7 @@
     </footer>
 
     <script>
-        // Optimized Pac-Man Game with requestAnimationFrame
+        // Enhanced Pac-Man Game with Maze, Super Pellets, and Sound
         const gameBoard = document.getElementById('gameBoard');
         const scoreDisplay = document.getElementById('score');
         const livesDisplay = document.getElementById('lives');
@@ -234,34 +234,108 @@
         let lives = 3;
         let gameRunning = true;
 
+        // Maze layout (1 = wall, 0 = path)
+        const maze = [
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,1,1,0,0,0,1],
+            [1,0,1,0,1,1,0,1,0,1],
+            [1,0,1,0,0,0,0,1,0,1],
+            [1,0,0,0,1,1,0,0,0,1],
+            [1,1,0,1,1,1,1,0,1,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,0,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1]
+        ];
+
         // Game state
-        let pacmanPos = 0;
+        let pacmanPos = 11;
         let pacmanMouthOpen = true;
         let mouthToggleCounter = 0;
+        let powerMode = false;
+        let powerModeTimer = 0;
+        const powerModeDuration = 400; // frames
         
         const ghosts = [
-            { pos: 15, color: '#FF6B6B', name: 'Red' },
-            { pos: 25, color: '#4ECDC4', name: 'Cyan' },
-            { pos: 35, color: '#FFE66D', name: 'Yellow' }
+            { pos: 45, color: '#FF6B6B', name: 'Red', edible: false },
+            { pos: 54, color: '#4ECDC4', name: 'Cyan', edible: false },
+            { pos: 55, color: '#FFE66D', name: 'Yellow', edible: false }
         ];
 
         // Pre-cache cells for better performance
         const cellCache = new Map();
         let pellets = new Set();
+        let superPellets = new Set();
         let pacmanDirection = null;
         let nextDirection = null;
         let lastMoveTime = 0;
         const moveInterval = 150; // milliseconds between moves
         let animationFrameId = null;
 
-        // Initialize pellets
+        // Web Audio API for sound effects
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound(frequency, duration, type = 'sine') {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = frequency;
+            oscillator.type = type;
+            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        function playPelletSound() {
+            playSound(400, 0.05);
+        }
+
+        function playSuperPelletSound() {
+            playSound(800, 0.15, 'square');
+            setTimeout(() => playSound(600, 0.1, 'square'), 100);
+        }
+
+        function playGhostEatenSound() {
+            playSound(200, 0.3, 'sawtooth');
+        }
+
+        function playGameOverSound() {
+            playSound(300, 0.1);
+            setTimeout(() => playSound(200, 0.3), 100);
+        }
+
+        // Initialize pellets and super pellets
         function initPellets() {
             pellets.clear();
+            superPellets.clear();
+            
             for (let i = 0; i < CELL_COUNT; i++) {
-                if (i !== pacmanPos && !ghosts.some(g => g.pos === i)) {
+                const row = Math.floor(i / GRID_SIZE);
+                const col = i % GRID_SIZE;
+                
+                // Skip walls and ghost/pacman starting positions
+                if (maze[row][col] === 1) continue;
+                if (i === pacmanPos || ghosts.some(g => g.pos === i)) continue;
+                
+                // Place super pellets at corners
+                if ((i === 11 || i === 18 || i === 81 || i === 88)) {
+                    superPellets.add(i);
+                } else {
                     pellets.add(i);
                 }
             }
+        }
+
+        // Check if position is walkable
+        function isWalkable(pos) {
+            const row = Math.floor(pos / GRID_SIZE);
+            const col = pos % GRID_SIZE;
+            return maze[row][col] === 0;
         }
 
         // Create cell elements once
@@ -272,19 +346,31 @@
                 const cell = document.createElement('div');
                 cell.style.width = '40px';
                 cell.style.height = '40px';
-                cell.style.backgroundColor = '#001a00';
-                cell.style.border = '1px solid #0a3a0a';
                 cell.style.display = 'flex';
                 cell.style.alignItems = 'center';
                 cell.style.justifyContent = 'center';
                 cell.style.fontSize = '24px';
                 cell.style.transition = 'all 0.05s ease-out';
+                
+                const row = Math.floor(i / GRID_SIZE);
+                const col = i % GRID_SIZE;
+                
+                if (maze[row][col] === 1) {
+                    cell.style.backgroundColor = '#1a3a5c';
+                    cell.style.border = '2px solid #0066ff';
+                    cell.textContent = '█';
+                    cell.style.color = '#0066ff';
+                } else {
+                    cell.style.backgroundColor = '#001a00';
+                    cell.style.border = '1px solid #0a3a0a';
+                }
+                
                 gameBoard.appendChild(cell);
                 cellCache.set(i, cell);
             }
         }
 
-        // Optimized render - only update changed cells
+        // Optimized render
         function render() {
             cellCache.forEach((cell, index) => {
                 cell.textContent = '';
@@ -293,21 +379,49 @@
                 cell.style.textShadow = '';
                 cell.style.filter = '';
 
+                const row = Math.floor(index / GRID_SIZE);
+                const col = index % GRID_SIZE;
+                
+                // Render walls
+                if (maze[row][col] === 1) {
+                    cell.textContent = '█';
+                    cell.style.color = '#0066ff';
+                    return;
+                }
+
+                // Render Pac-Man
                 if (index === pacmanPos) {
-                    // Animate Pac-Man mouth
                     const mouth = pacmanMouthOpen ? '◉' : '●';
                     cell.textContent = mouth;
                     cell.style.color = '#FFD700';
                     cell.style.fontSize = '32px';
                     cell.style.textShadow = '0 0 8px #FFD700, 0 0 12px #FF8800';
                     cell.style.filter = 'drop-shadow(0 0 4px rgba(255, 215, 0, 0.6))';
-                } else if (ghosts.some(g => g.pos === index)) {
+                }
+                // Render ghosts
+                else if (ghosts.some(g => g.pos === index)) {
                     const ghost = ghosts.find(g => g.pos === index);
-                    cell.textContent = '👻';
-                    cell.style.fontSize = '24px';
-                    cell.style.textShadow = `0 0 8px ${ghost.color}`;
-                    cell.style.filter = `drop-shadow(0 0 6px ${ghost.color})`;
-                } else if (pellets.has(index)) {
+                    if (ghost.edible) {
+                        cell.textContent = '□';
+                        cell.style.color = '#6B8EFF';
+                        cell.style.fontSize = '28px';
+                        cell.style.textShadow = '0 0 8px #6B8EFF';
+                    } else {
+                        cell.textContent = '👻';
+                        cell.style.fontSize = '24px';
+                        cell.style.textShadow = `0 0 8px ${ghost.color}`;
+                        cell.style.filter = `drop-shadow(0 0 6px ${ghost.color})`;
+                    }
+                }
+                // Render super pellets
+                else if (superPellets.has(index)) {
+                    cell.textContent = '◆';
+                    cell.style.color = '#FF00FF';
+                    cell.style.fontSize = '16px';
+                    cell.style.textShadow = '0 0 8px #FF00FF';
+                }
+                // Render regular pellets
+                else if (pellets.has(index)) {
                     cell.textContent = '●';
                     cell.style.color = '#FFF';
                     cell.style.fontSize = '8px';
@@ -330,36 +444,72 @@
             else if (direction === 'ArrowLeft' && col > 0) newPos -= 1;
             else if (direction === 'ArrowRight' && col < GRID_SIZE - 1) newPos += 1;
 
+            // Check wall collision
+            if (!isWalkable(newPos)) return;
+
             pacmanPos = newPos;
             pacmanDirection = direction;
             nextDirection = null;
 
-            // Eat pellets
+            // Eat regular pellets
             if (pellets.has(pacmanPos)) {
                 pellets.delete(pacmanPos);
                 score += 10;
                 scoreDisplay.textContent = score;
+                playPelletSound();
+            }
+
+            // Eat super pellets
+            if (superPellets.has(pacmanPos)) {
+                superPellets.delete(pacmanPos);
+                score += 50;
+                scoreDisplay.textContent = score;
+                playSuperPelletSound();
+                activatePowerMode();
             }
 
             // Win condition
-            if (pellets.size === 0) {
+            if (pellets.size === 0 && superPellets.size === 0) {
                 gameRunning = false;
                 statusText.textContent = '🎉 You won! All pellets collected!';
                 statusText.style.color = '#4ECDC4';
             }
         }
 
-        // Move ghosts with better pathfinding
+        // Activate power mode
+        function activatePowerMode() {
+            powerMode = true;
+            powerModeTimer = 0;
+            ghosts.forEach(g => g.edible = true);
+            statusText.textContent = '⚡ POWER MODE! Eat the ghosts!';
+            statusText.style.color = '#FF00FF';
+        }
+
+        // Move ghosts with wall collision
         function moveGhosts() {
             ghosts.forEach((ghost, idx) => {
                 const directions = [];
                 const row = Math.floor(ghost.pos / GRID_SIZE);
                 const col = ghost.pos % GRID_SIZE;
 
-                if (row > 0) directions.push(ghost.pos - GRID_SIZE);
-                if (row < GRID_SIZE - 1) directions.push(ghost.pos + GRID_SIZE);
-                if (col > 0) directions.push(ghost.pos - 1);
-                if (col < GRID_SIZE - 1) directions.push(ghost.pos + 1);
+                // Find valid moves
+                const possibleMoves = [
+                    { pos: ghost.pos - GRID_SIZE, dir: 'up' },
+                    { pos: ghost.pos + GRID_SIZE, dir: 'down' },
+                    { pos: ghost.pos - 1, dir: 'left' },
+                    { pos: ghost.pos + 1, dir: 'right' }
+                ];
+
+                possibleMoves.forEach(move => {
+                    if (isWalkable(move.pos)) {
+                        const newRow = Math.floor(move.pos / GRID_SIZE);
+                        const newCol = move.pos % GRID_SIZE;
+                        // Ensure within bounds
+                        if (newRow >= 0 && newRow < GRID_SIZE && newCol >= 0 && newCol < GRID_SIZE) {
+                            directions.push(move.pos);
+                        }
+                    }
+                });
 
                 if (directions.length > 0) {
                     ghost.pos = directions[Math.floor(Math.random() * directions.length)];
@@ -367,28 +517,50 @@
 
                 // Check collision
                 if (ghost.pos === pacmanPos && gameRunning) {
-                    lives--;
-                    livesDisplay.textContent = lives;
-
-                    if (lives <= 0) {
-                        gameRunning = false;
-                        statusText.textContent = '💀 Game Over! No lives left.';
-                        statusText.style.color = '#FF6B6B';
+                    if (ghost.edible) {
+                        // Eat the ghost
+                        score += 200;
+                        scoreDisplay.textContent = score;
+                        playGhostEatenSound();
+                        ghost.pos = Math.floor(Math.random() * 20) + 40; // Reset ghost somewhere
+                        ghost.edible = false;
                     } else {
-                        pacmanPos = 0;
-                        statusText.textContent = `Hit by ${ghost.name} ghost! Lives: ${lives}`;
-                        statusText.style.color = '#FFE66D';
+                        // Hit by ghost
+                        lives--;
+                        livesDisplay.textContent = lives;
+
+                        if (lives <= 0) {
+                            gameRunning = false;
+                            statusText.textContent = '💀 Game Over! No lives left.';
+                            statusText.style.color = '#FF6B6B';
+                            playGameOverSound();
+                        } else {
+                            pacmanPos = 11;
+                            statusText.textContent = `Hit by ${ghost.name} ghost! Lives: ${lives}`;
+                            statusText.style.color = '#FFE66D';
+                        }
                     }
                 }
             });
         }
 
-        // Game loop using requestAnimationFrame for smooth performance
+        // Game loop using requestAnimationFrame
         function gameLoop(timestamp) {
             if (!gameRunning) {
                 render();
                 animationFrameId = requestAnimationFrame(gameLoop);
                 return;
+            }
+
+            // Update power mode
+            if (powerMode) {
+                powerModeTimer++;
+                if (powerModeTimer > powerModeDuration) {
+                    powerMode = false;
+                    ghosts.forEach(g => g.edible = false);
+                    statusText.textContent = 'Game running... Eat pellets and avoid ghosts!';
+                    statusText.style.color = '#fff';
+                }
             }
 
             if (timestamp - lastMoveTime > moveInterval) {
@@ -412,17 +584,22 @@
         function init() {
             score = 0;
             lives = 3;
-            pacmanPos = 0;
+            pacmanPos = 11;
             pacmanDirection = null;
             nextDirection = null;
             gameRunning = true;
             pacmanMouthOpen = true;
             mouthToggleCounter = 0;
             lastMoveTime = 0;
+            powerMode = false;
+            powerModeTimer = 0;
             
-            ghosts[0].pos = 15;
-            ghosts[1].pos = 25;
-            ghosts[2].pos = 35;
+            ghosts[0].pos = 45;
+            ghosts[0].edible = false;
+            ghosts[1].pos = 54;
+            ghosts[1].edible = false;
+            ghosts[2].pos = 55;
+            ghosts[2].edible = false;
             
             scoreDisplay.textContent = score;
             livesDisplay.textContent = lives;
