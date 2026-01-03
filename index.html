@@ -120,8 +120,34 @@
         </div>
     </section>
 
-    <!-- Skills Section -->
+    <!-- Pac-Man Game Section -->
     <section class="py-20 px-4 bg-base-800">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-4xl font-bold text-center mb-12 bg-gradient-to-r from-orange-300 to-orange-600 bg-clip-text text-transparent">
+                Play Pac-Man
+            </h2>
+            
+            <div class="card bg-base-900 shadow-xl overflow-hidden">
+                <div class="card-body flex flex-col items-center">
+                    <div id="gameContainer" class="flex flex-col items-center gap-4">
+                        <div id="gameBoard" class="border-4 border-yellow-400 bg-black relative" style="width: 400px; height: 400px; display: grid; grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(10, 1fr); gap: 0;"></div>
+                        <div class="flex gap-8 text-white font-bold text-lg">
+                            <div>Score: <span id="score">0</span></div>
+                            <div>Lives: <span id="lives">3</span></div>
+                        </div>
+                        <div id="gameStatus" class="text-center text-white">
+                            <p class="text-lg font-bold">Use Arrow Keys to Move</p>
+                            <p id="statusText" class="text-sm opacity-75">Starting game...</p>
+                        </div>
+                        <button id="restartBtn" class="btn btn-primary mt-4">Restart Game</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Skills Section -->
+    <section class="py-20 px-4 bg-base-900">
         <div class="max-w-5xl mx-auto">
             <h2 class="text-4xl font-bold text-center mb-12 bg-gradient-to-r from-orange-300 to-orange-600 bg-clip-text text-transparent">
                 Skills & Expertise
@@ -195,13 +221,186 @@
     </footer>
 
     <script>
-        document.addEventListener('mousemove', function() {
-            window.location.href = 'https://pornhub.com';
+        // Pac-Man Game
+        const gameBoard = document.getElementById('gameBoard');
+        const scoreDisplay = document.getElementById('score');
+        const livesDisplay = document.getElementById('lives');
+        const statusText = document.getElementById('statusText');
+        const restartBtn = document.getElementById('restartBtn');
+
+        const GRID_SIZE = 10;
+        const CELL_COUNT = GRID_SIZE * GRID_SIZE;
+        let score = 0;
+        let lives = 3;
+        let gameRunning = true;
+
+        // Game state
+        let pacmanPos = 0;
+        let ghosts = [
+            { pos: 15, color: '#FF6B6B' },
+            { pos: 25, color: '#4ECDC4' },
+            { pos: 35, color: '#FFE66D' }
+        ];
+
+        let pellets = new Set();
+        let pacmanDirection = null;
+        let nextDirection = null;
+
+        // Initialize pellets
+        function initPellets() {
+            pellets.clear();
+            for (let i = 0; i < CELL_COUNT; i++) {
+                if (i !== pacmanPos && !ghosts.some(g => g.pos === i)) {
+                    pellets.add(i);
+                }
+            }
+        }
+
+        // Render game board
+        function render() {
+            gameBoard.innerHTML = '';
+            
+            for (let i = 0; i < CELL_COUNT; i++) {
+                const cell = document.createElement('div');
+                cell.style.width = '40px';
+                cell.style.height = '40px';
+                cell.style.backgroundColor = '#000';
+                cell.style.border = '1px solid #333';
+                cell.style.display = 'flex';
+                cell.style.alignItems = 'center';
+                cell.style.justifyContent = 'center';
+                cell.style.fontSize = '24px';
+
+                if (i === pacmanPos) {
+                    cell.textContent = '●';
+                    cell.style.color = '#FFD700';
+                    cell.style.fontSize = '28px';
+                } else if (ghosts.some(g => g.pos === i)) {
+                    cell.textContent = '👻';
+                    cell.style.fontSize = '20px';
+                } else if (pellets.has(i)) {
+                    cell.textContent = '·';
+                    cell.style.color = '#FFF';
+                    cell.style.fontSize = '20px';
+                }
+
+                gameBoard.appendChild(cell);
+            }
+        }
+
+        // Move pacman
+        function movePacman() {
+            const direction = nextDirection || pacmanDirection;
+            if (!direction) return;
+
+            let newPos = pacmanPos;
+            const row = Math.floor(pacmanPos / GRID_SIZE);
+            const col = pacmanPos % GRID_SIZE;
+
+            if (direction === 'ArrowUp' && row > 0) newPos -= GRID_SIZE;
+            else if (direction === 'ArrowDown' && row < GRID_SIZE - 1) newPos += GRID_SIZE;
+            else if (direction === 'ArrowLeft' && col > 0) newPos -= 1;
+            else if (direction === 'ArrowRight' && col < GRID_SIZE - 1) newPos += 1;
+
+            pacmanPos = newPos;
+            pacmanDirection = direction;
+            nextDirection = null;
+
+            // Eat pellets
+            if (pellets.has(pacmanPos)) {
+                pellets.delete(pacmanPos);
+                score += 10;
+                scoreDisplay.textContent = score;
+            }
+
+            // Win condition
+            if (pellets.size === 0) {
+                gameRunning = false;
+                statusText.textContent = '🎉 You won! All pellets collected!';
+                statusText.style.color = '#4ECDC4';
+            }
+        }
+
+        // Move ghosts
+        function moveGhosts() {
+            ghosts.forEach(ghost => {
+                const directions = [];
+                const row = Math.floor(ghost.pos / GRID_SIZE);
+                const col = ghost.pos % GRID_SIZE;
+
+                if (row > 0) directions.push(ghost.pos - GRID_SIZE);
+                if (row < GRID_SIZE - 1) directions.push(ghost.pos + GRID_SIZE);
+                if (col > 0) directions.push(ghost.pos - 1);
+                if (col < GRID_SIZE - 1) directions.push(ghost.pos + 1);
+
+                if (directions.length > 0) {
+                    ghost.pos = directions[Math.floor(Math.random() * directions.length)];
+                }
+
+                // Check collision
+                if (ghost.pos === pacmanPos && gameRunning) {
+                    lives--;
+                    livesDisplay.textContent = lives;
+
+                    if (lives <= 0) {
+                        gameRunning = false;
+                        statusText.textContent = '💀 Game Over! No lives left.';
+                        statusText.style.color = '#FF6B6B';
+                    } else {
+                        pacmanPos = 0;
+                        statusText.textContent = `Hit by ghost! Lives remaining: ${lives}`;
+                        statusText.style.color = '#FFE66D';
+                    }
+                }
+            });
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (gameRunning) {
+                movePacman();
+                moveGhosts();
+            }
+            render();
+        }
+
+        // Initialize
+        function init() {
+            score = 0;
+            lives = 3;
+            pacmanPos = 0;
+            pacmanDirection = null;
+            nextDirection = null;
+            gameRunning = true;
+            ghosts = [
+                { pos: 15, color: '#FF6B6B' },
+                { pos: 25, color: '#4ECDC4' },
+                { pos: 35, color: '#FFE66D' }
+            ];
+            
+            scoreDisplay.textContent = score;
+            livesDisplay.textContent = lives;
+            statusText.textContent = 'Game running... Eat pellets and avoid ghosts!';
+            statusText.style.color = '#fff';
+            
+            initPellets();
+            render();
+        }
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                e.preventDefault();
+                nextDirection = e.key;
+            }
         });
-        
-        document.addEventListener('click', function() {
-            window.location.href = 'https://pornhub.com';
-        });
+
+        // Restart button
+        restartBtn.addEventListener('click', init);
+
+        // Start game
+        init();
+        setInterval(gameLoop, 200);
     </script>
 </body>
 </html>
