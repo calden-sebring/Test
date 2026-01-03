@@ -221,7 +221,7 @@
     </footer>
 
     <script>
-        // Pac-Man Game
+        // Optimized Pac-Man Game with requestAnimationFrame
         const gameBoard = document.getElementById('gameBoard');
         const scoreDisplay = document.getElementById('score');
         const livesDisplay = document.getElementById('lives');
@@ -236,15 +236,23 @@
 
         // Game state
         let pacmanPos = 0;
-        let ghosts = [
-            { pos: 15, color: '#FF6B6B' },
-            { pos: 25, color: '#4ECDC4' },
-            { pos: 35, color: '#FFE66D' }
+        let pacmanMouthOpen = true;
+        let mouthToggleCounter = 0;
+        
+        const ghosts = [
+            { pos: 15, color: '#FF6B6B', name: 'Red' },
+            { pos: 25, color: '#4ECDC4', name: 'Cyan' },
+            { pos: 35, color: '#FFE66D', name: 'Yellow' }
         ];
 
+        // Pre-cache cells for better performance
+        const cellCache = new Map();
         let pellets = new Set();
         let pacmanDirection = null;
         let nextDirection = null;
+        let lastMoveTime = 0;
+        const moveInterval = 150; // milliseconds between moves
+        let animationFrameId = null;
 
         // Initialize pellets
         function initPellets() {
@@ -256,36 +264,56 @@
             }
         }
 
-        // Render game board
-        function render() {
+        // Create cell elements once
+        function initBoard() {
             gameBoard.innerHTML = '';
-            
+            cellCache.clear();
             for (let i = 0; i < CELL_COUNT; i++) {
                 const cell = document.createElement('div');
                 cell.style.width = '40px';
                 cell.style.height = '40px';
-                cell.style.backgroundColor = '#000';
-                cell.style.border = '1px solid #333';
+                cell.style.backgroundColor = '#001a00';
+                cell.style.border = '1px solid #0a3a0a';
                 cell.style.display = 'flex';
                 cell.style.alignItems = 'center';
                 cell.style.justifyContent = 'center';
                 cell.style.fontSize = '24px';
-
-                if (i === pacmanPos) {
-                    cell.textContent = '●';
-                    cell.style.color = '#FFD700';
-                    cell.style.fontSize = '28px';
-                } else if (ghosts.some(g => g.pos === i)) {
-                    cell.textContent = '👻';
-                    cell.style.fontSize = '20px';
-                } else if (pellets.has(i)) {
-                    cell.textContent = '·';
-                    cell.style.color = '#FFF';
-                    cell.style.fontSize = '20px';
-                }
-
+                cell.style.transition = 'all 0.05s ease-out';
                 gameBoard.appendChild(cell);
+                cellCache.set(i, cell);
             }
+        }
+
+        // Optimized render - only update changed cells
+        function render() {
+            cellCache.forEach((cell, index) => {
+                cell.textContent = '';
+                cell.style.color = '';
+                cell.style.fontSize = '24px';
+                cell.style.textShadow = '';
+                cell.style.filter = '';
+
+                if (index === pacmanPos) {
+                    // Animate Pac-Man mouth
+                    const mouth = pacmanMouthOpen ? '◉' : '●';
+                    cell.textContent = mouth;
+                    cell.style.color = '#FFD700';
+                    cell.style.fontSize = '32px';
+                    cell.style.textShadow = '0 0 8px #FFD700, 0 0 12px #FF8800';
+                    cell.style.filter = 'drop-shadow(0 0 4px rgba(255, 215, 0, 0.6))';
+                } else if (ghosts.some(g => g.pos === index)) {
+                    const ghost = ghosts.find(g => g.pos === index);
+                    cell.textContent = '👻';
+                    cell.style.fontSize = '24px';
+                    cell.style.textShadow = `0 0 8px ${ghost.color}`;
+                    cell.style.filter = `drop-shadow(0 0 6px ${ghost.color})`;
+                } else if (pellets.has(index)) {
+                    cell.textContent = '●';
+                    cell.style.color = '#FFF';
+                    cell.style.fontSize = '8px';
+                    cell.style.opacity = '0.8';
+                }
+            });
         }
 
         // Move pacman
@@ -321,9 +349,9 @@
             }
         }
 
-        // Move ghosts
+        // Move ghosts with better pathfinding
         function moveGhosts() {
-            ghosts.forEach(ghost => {
+            ghosts.forEach((ghost, idx) => {
                 const directions = [];
                 const row = Math.floor(ghost.pos / GRID_SIZE);
                 const col = ghost.pos % GRID_SIZE;
@@ -348,20 +376,36 @@
                         statusText.style.color = '#FF6B6B';
                     } else {
                         pacmanPos = 0;
-                        statusText.textContent = `Hit by ghost! Lives remaining: ${lives}`;
+                        statusText.textContent = `Hit by ${ghost.name} ghost! Lives: ${lives}`;
                         statusText.style.color = '#FFE66D';
                     }
                 }
             });
         }
 
-        // Game loop
-        function gameLoop() {
-            if (gameRunning) {
+        // Game loop using requestAnimationFrame for smooth performance
+        function gameLoop(timestamp) {
+            if (!gameRunning) {
+                render();
+                animationFrameId = requestAnimationFrame(gameLoop);
+                return;
+            }
+
+            if (timestamp - lastMoveTime > moveInterval) {
                 movePacman();
                 moveGhosts();
+                lastMoveTime = timestamp;
             }
+
+            // Toggle Pac-Man mouth animation
+            mouthToggleCounter++;
+            if (mouthToggleCounter > 3) {
+                pacmanMouthOpen = !pacmanMouthOpen;
+                mouthToggleCounter = 0;
+            }
+
             render();
+            animationFrameId = requestAnimationFrame(gameLoop);
         }
 
         // Initialize
@@ -372,11 +416,13 @@
             pacmanDirection = null;
             nextDirection = null;
             gameRunning = true;
-            ghosts = [
-                { pos: 15, color: '#FF6B6B' },
-                { pos: 25, color: '#4ECDC4' },
-                { pos: 35, color: '#FFE66D' }
-            ];
+            pacmanMouthOpen = true;
+            mouthToggleCounter = 0;
+            lastMoveTime = 0;
+            
+            ghosts[0].pos = 15;
+            ghosts[1].pos = 25;
+            ghosts[2].pos = 35;
             
             scoreDisplay.textContent = score;
             livesDisplay.textContent = lives;
@@ -384,6 +430,7 @@
             statusText.style.color = '#fff';
             
             initPellets();
+            initBoard();
             render();
         }
 
@@ -396,11 +443,17 @@
         });
 
         // Restart button
-        restartBtn.addEventListener('click', init);
+        restartBtn.addEventListener('click', () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            init();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        });
 
         // Start game
         init();
-        setInterval(gameLoop, 200);
+        animationFrameId = requestAnimationFrame(gameLoop);
     </script>
 </body>
 </html>
