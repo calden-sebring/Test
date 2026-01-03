@@ -129,8 +129,8 @@
             
             <div class="card bg-base-900 shadow-xl overflow-hidden">
                 <div class="card-body flex flex-col items-center">
-                    <div id="gameContainer" class="flex flex-col items-center gap-4">
-                        <div id="gameBoard" class="border-4 border-yellow-400 bg-black relative" style="width: 400px; height: 400px; display: grid; grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(10, 1fr); gap: 0;"></div>
+                    <div id="gameContainer" class="flex flex-col items-center gap-4 overflow-auto">
+                        <div id="gameBoard" class="border-4 border-yellow-400 bg-black relative" style="width: 640px; height: 640px; display: grid; grid-template-columns: repeat(16, 1fr); grid-template-rows: repeat(16, 1fr); gap: 0;"></div>
                         <div class="flex gap-8 text-white font-bold text-lg">
                             <div>Score: <span id="score">0</span></div>
                             <div>Lives: <span id="lives">3</span></div>
@@ -228,28 +228,34 @@
         const statusText = document.getElementById('statusText');
         const restartBtn = document.getElementById('restartBtn');
 
-        const GRID_SIZE = 10;
+        const GRID_SIZE = 16;
         const CELL_COUNT = GRID_SIZE * GRID_SIZE;
         let score = 0;
         let lives = 3;
         let gameRunning = true;
 
-        // Maze layout (1 = wall, 0 = path)
+        // Maze layout (1 = wall, 0 = path) - 16x16 larger maze
         const maze = [
-            [1,1,1,1,1,1,1,1,1,1],
-            [1,0,0,0,1,1,0,0,0,1],
-            [1,0,1,0,1,1,0,1,0,1],
-            [1,0,1,0,0,0,0,1,0,1],
-            [1,0,0,0,1,1,0,0,0,1],
-            [1,1,0,1,1,1,1,0,1,1],
-            [1,0,0,0,0,0,0,0,0,1],
-            [1,0,1,1,0,0,1,1,0,1],
-            [1,0,0,0,0,0,0,0,0,1],
-            [1,1,1,1,1,1,1,1,1,1]
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,0,1,1,0,1,1,1,0,0,1],
+            [1,0,1,0,0,0,0,0,0,0,0,1,0,1,0,1],
+            [1,0,0,0,1,1,0,1,1,0,1,0,0,0,0,1],
+            [1,1,0,1,0,0,0,0,0,0,0,1,0,1,1,1],
+            [1,0,0,0,0,1,1,0,0,1,0,0,0,0,0,1],
+            [1,0,1,0,1,0,0,0,0,0,0,1,0,1,0,1],
+            [1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1],
+            [1,1,0,1,0,1,0,0,0,1,0,1,0,1,1,1],
+            [1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],
+            [1,0,1,1,1,0,1,0,1,0,1,1,1,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+            [1,1,0,1,0,1,0,1,1,0,1,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
         ];
 
         // Game state
-        let pacmanPos = 11;
+        let pacmanPos = 17;
         let pacmanMouthOpen = true;
         let mouthToggleCounter = 0;
         let powerMode = false;
@@ -257,9 +263,9 @@
         const powerModeDuration = 400; // frames
         
         const ghosts = [
-            { pos: 45, color: '#FF6B6B', name: 'Red', edible: false },
-            { pos: 54, color: '#4ECDC4', name: 'Cyan', edible: false },
-            { pos: 55, color: '#FFE66D', name: 'Yellow', edible: false }
+            { pos: 100, color: '#FF6B6B', name: 'Red', edible: false },
+            { pos: 118, color: '#4ECDC4', name: 'Cyan', edible: false },
+            { pos: 135, color: '#FFE66D', name: 'Yellow', edible: false }
         ];
 
         // Pre-cache cells for better performance
@@ -584,7 +590,7 @@
         function init() {
             score = 0;
             lives = 3;
-            pacmanPos = 11;
+            pacmanPos = 17;
             pacmanDirection = null;
             nextDirection = null;
             gameRunning = true;
@@ -594,11 +600,11 @@
             powerMode = false;
             powerModeTimer = 0;
             
-            ghosts[0].pos = 45;
+            ghosts[0].pos = 100;
             ghosts[0].edible = false;
-            ghosts[1].pos = 54;
+            ghosts[1].pos = 118;
             ghosts[1].edible = false;
-            ghosts[2].pos = 55;
+            ghosts[2].pos = 135;
             ghosts[2].edible = false;
             
             scoreDisplay.textContent = score;
